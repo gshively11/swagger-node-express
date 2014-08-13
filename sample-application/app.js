@@ -120,9 +120,9 @@ app.get('/throw/some/error', function(){
   };
 });
 
-app.use(function(err, req, res, next){
-  res.send(err.status, err.message);
-});
+// app.use(function(err, req, res, next){
+//   res.send(err.status, err.message);
+// });
 
 // Start the server on port 8002
 app.listen(8002);

@@ -2,8 +2,11 @@ var sw = require("../");
 var param = require("../lib/paramTypes.js");
 var url = require("url");
 var swe = sw.errors;
+var validate = require('swagger-validation');
+var _ = require('lodash');
 
 var petData = require("./service.js");
+var models = require("./models.js").models;
 
 // the description will be picked up in the resource listing
 exports.findById = {
@@ -16,17 +19,25 @@ exports.findById = {
     type : "Pet",
     nickname : "getPetById",
     produces : ["application/json"],
-    parameters : [param.path("petId", "ID of pet that needs to be fetched", "string")],
+    parameters : [{
+      name: "petId",
+      paramType: "path",
+      type: "integer",
+      format: "int32"
+    }],
     responseMessages : [swe.invalid('id'), swe.notFound('pet')]
   },
   'action': function (req,res) {
-    if (!req.params.petId) {
-      throw swe.invalid('id'); }
-    var id = parseInt(req.params.petId);
-    var pet = petData.getPetById(id);
+    validateReq(req, res, exports.findById.spec, function(){
+      if (!req.params.petId) {
+        throw swe.invalid('id'); 
+      }
+      var id = parseInt(req.params.petId);
+      var pet = petData.getPetById(id);
 
-    if(pet) res.send(JSON.stringify(pet));
-    else throw swe.notFound('pet',res);
+      if(pet) res.send(JSON.stringify(pet));
+      else throw swe.notFound('pet',res);
+    });
   }
 };
 
@@ -47,12 +58,14 @@ exports.findByStatus = {
     nickname : "findPetsByStatus"
   },  
   'action': function (req,res) {
-    var statusString = url.parse(req.url,true).query["status"];
-    if (!statusString) {
-      throw swe.invalid('status'); }
+    validateReq(req, res, exports.findByStatus.spec, function(){
+      var statusString = url.parse(req.url,true).query["status"];
+      if (!statusString) {
+        throw swe.invalid('status'); }
 
-    var output = petData.findPetByStatus(statusString);
-    res.send(JSON.stringify(output));
+      var output = petData.findPetByStatus(statusString);
+      res.send(JSON.stringify(output));
+    });
   }
 };
 
@@ -71,12 +84,14 @@ exports.findByTags = {
     nickname : "findPetsByTags"
   },
   'action': function (req,res) {
-    var tagsString = url.parse(req.url,true).query["tags"];
-    if (!tagsString) {
-      throw swe.invalid('tag'); }
-    var output = petData.findPetByTags(tagsString);
-    sw.setHeaders(res);
-    res.send(JSON.stringify(data));
+    validateReq(req, res, exports.findByTags.spec, function(){
+      var tagsString = url.parse(req.url,true).query["tags"];
+      if (!tagsString) {
+        throw swe.invalid('tag'); }
+      var output = petData.findPetByTags(tagsString);
+      sw.setHeaders(res);
+      res.send(JSON.stringify(data));
+    });
   }
 };
 
@@ -91,14 +106,16 @@ exports.addPet = {
     nickname : "addPet"
   },  
   'action': function(req, res) {
-    var body = req.body;
-    if(!body || !body.id){
-      throw swe.invalid('pet');
-    }
-    else{
-	    petData.addPet(body);
-	    res.send(200);
-	  }  
+    validateReq(req, res, exports.addPet.spec, function(){
+      var body = req.body;
+      if(!body || !body.id){
+        throw swe.invalid('pet');
+      }
+      else{
+  	    petData.addPet(body);
+  	    res.send(200);
+  	  }
+    });
   }
 };
 
@@ -113,14 +130,16 @@ exports.updatePet = {
     nickname : "addPet"
   },  
   'action': function(req, res) {
-    var body = req.body;
-    if(!body || !body.id){
-      throw swe.invalid('pet');
-    }
-    else {
-	    petData.addPet(body);
-	    res.send(200);
-	  }
+    validateReq(req, res, exports.findByTags.spec, function(){
+      var body = req.body;
+      if(!body || !body.id){
+        throw swe.invalid('pet');
+      }
+      else {
+  	    petData.addPet(body);
+  	    res.send(200);
+  	  }
+    });
   }
 };
 
@@ -135,8 +154,24 @@ exports.deletePet = {
     nickname : "deletePet" 
   },  
   'action': function(req, res) {
-    var id = parseInt(req.params.id);
-    petData.deletePet(id)
-    res.send(204);
+    validateReq(req, res, exports.findByTags.spec, function(){
+      var id = parseInt(req.params.id);
+      petData.deletePet(id)
+      res.send(204);
+    });
   }
 };
+
+function validateReq(req, res, spec, func) {
+  var ret = validate(spec, req, models);
+  if(ret.length) {
+    var errors = _.pluck(_.pluck(ret, 'error'), 'message');
+    res.send(JSON.stringify({
+      'message': 'validation failure - ' + errors.join(),
+      'status': 400
+    }), 400);
+    return;
+  }
+
+  func();
+}
